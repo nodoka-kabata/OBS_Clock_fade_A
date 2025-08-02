@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1"
+    />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.10.6/dayjs.min.js"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        /* ▼ ここでフォントを変更できます ▼ */
+        font-family: "Roboto", sans-serif;
+        font-optical-sizing: auto;
+        font-weight: 700;
+        font-style: normal;
+        font-variation-settings: "wdth" 100;
+        letter-spacing: 0.115em;
+        font-feature-settings: "initial";
+        font-kerning: none;
+        /* ▼ ここでテキストの色を変更できます ▼ */
+        color: #ffffff;
+        /* ▲ ここでテキストの色を変更 ▲ */
+      }
+
+      .nowtime {
+        margin-top: 15px;
+        margin-left: 15px;
+        padding: 5px 0px 5px 0px;
+        border-radius: 10px 10px 10px 10px;
+        /* ▼ ここで背景の色を変更できます（初期設定は透過） ▼ */
+        background: #00000000;
+        /* ▲ ここで背景の色を変更 ▲ */
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 150px; /* 時刻の高さに応じて調整 */
+      }
+
+      .time-wrapper {
+        position: relative;
+        width: fit-content;
+        margin: 0 auto;
+        isolation: isolate;
+        transform-style: preserve-3d;
+      }
+
+      #time,
+      #time-next {
+        display: inline;
+        line-height: 1em; /* 行間（数字の上下の余白） */
+        letter-spacing: 12px; /* 字間（数字の左右の余白） */
+        font-size: 100pt; /* ▼ ここで時刻のサイズを変更できます ▼ */
+        width: fit-content;
+        color: #ffffff; /* ▼ ここで時刻の色を変更できます ▼ */
+        position: absolute;
+        left: 50%;
+        margin: auto;
+        text-align: center;
+        will-change: opacity;
+        backface-visibility: hidden;
+        mix-blend-mode: normal;
+        isolation: isolate;
+        -webkit-font-smoothing: antialiased;
+        opacity: 1;
+      }
+
+      #time-next {
+        opacity: 0;
+      }
+
+      #time-outline,
+      #time-next-outline {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%) translateZ(1px);
+        margin: auto;
+        text-align: center;
+        display: inline;
+        line-height: 1em;
+        letter-spacing: 12px;
+        font-size: 100pt;
+        width: fit-content;
+        /* ▼ ここで時刻のフチの色・太さを変更できます ▼ */
+        -webkit-text-stroke: 10px #252525;
+        z-index: -1;
+        opacity: 1; /* フチを常に表示 */
+        mix-blend-mode: normal;
+        will-change: opacity;
+        transition: opacity 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+        isolation: isolate;
+        opacity: 1;
+        backface-visibility: hidden;
+        -webkit-font-smoothing: antialiased;
+
+      }
+
+      #time-next-outline {
+        opacity: 1; /* フチを常に表示 */
+      }
+
+      #time,
+      #time-next,
+      #time-outline,
+      #time-next-outline {
+        transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: opacity;
+        transform: translateX(-50%) translateZ(0);
+      }
+
+      .fade {
+        opacity: 0;
+      }
+
+      .fade-transition {
+        transition: opacity 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+      }
+
+      #colon {
+        vertical-align: 7%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="nowtime">
+      <div class="time-wrapper">
+        <p id="time-outline"></p>
+        <p id="time-next-outline"></p>
+        <p id="time"></p>
+        <p id="time-next"></p>
+      </div>
+    </div>
+
+    <script language="JavaScript">
+      // ▼ ここから時計の動作ロジック ▼
+      // 主要な設定は上部CSSコメントを参照してください
+      let previousMinute = -1;
+      let currentElement, nextElement, currentOutline, nextOutline;
+      let isTransitioning = false;
+      let clockInterval;
+
+      // 時計の初期化処理
+      const initClock = () => {
+        currentElement = document.getElementById("time");
+        nextElement = document.getElementById("time-next");
+        currentOutline = document.getElementById("time-outline");
+        nextOutline = document.getElementById("time-next-outline");
+
+        // 即座に時刻を表示
+        const dt = dayjs(new Date());
+        updateTime(currentElement, currentOutline, dt);
+        previousMinute = dt.minute();
+
+        // 1秒ごとにチェック
+        if (clockInterval) {
+          clearInterval(clockInterval);
+        }
+        clockInterval = setInterval(checkAndUpdateTime, 1000);
+
+        // 1分ごとの確実な更新も設定
+        scheduleNextMinuteUpdate();
+
+        // 初期化時にも正確な時刻表示を確保
+        setTimeout(() => {
+          const currentDt = dayjs(new Date());
+          if (currentDt.minute() !== previousMinute) {
+            forceTimeUpdate();
+          }
+        }, 100);
+      };
+
+      // 時刻表示を更新する関数
+      // element: 表示用要素, outlineElement: フチ用要素, dt: dayjsオブジェクト
+      const updateTime = (element, outlineElement, dt) => {
+        if (!element || !outlineElement) return;
+
+        // 24時間表記に変更
+        const hour = dt.format("HH");
+        const timeString = `${hour}<span id="colon">:</span>${dt.format("mm")}`;
+        element.innerHTML = timeString;
+        outlineElement.innerHTML = timeString;
+      };
+
+      // 1秒ごとに分の変化をチェック
+      const checkAndUpdateTime = () => {
+        if (isTransitioning) return;
+
+        const dt = dayjs(new Date());
+        const currentMinute = dt.minute();
+
+        // 分が変わったら更新
+        if (currentMinute !== previousMinute) {
+          performTimeUpdate(dt, currentMinute);
+        }
+      };
+
+      // 時刻を強制的に更新する関数（緊急時用）
+      const forceTimeUpdate = () => {
+        if (isTransitioning) {
+          // トランジション中でも強制的にリセット
+          isTransitioning = false;
+        }
+        const dt = dayjs(new Date());
+        const currentMinute = dt.minute();
+
+        // 現在表示中の要素を更新
+        updateTime(currentElement, currentOutline, dt);
+        previousMinute = currentMinute;
+      };
+
+      // 分が変わった時のアニメーション付き更新
+      const performTimeUpdate = (dt, currentMinute) => {
+        isTransitioning = true;
+
+        // 次の要素を準備
+        updateTime(nextElement, nextOutline, dt);
+
+        requestAnimationFrame(() => {
+          // 次の要素を配置
+          nextElement.style.opacity = "0";
+          nextOutline.style.opacity = "0";
+
+          requestAnimationFrame(() => {
+            // 新要素をフェードイン開始
+            nextElement.style.opacity = "0.2";
+            nextOutline.style.opacity = "0.2";
+
+            requestAnimationFrame(() => {
+              // クロスフェード
+              nextElement.style.opacity = "1";
+              nextOutline.style.opacity = "1";
+              currentElement.style.opacity = "0.8";
+              currentOutline.style.opacity = "0.8";
+
+              setTimeout(() => {
+                // 古い要素をフェードアウト
+                currentElement.style.opacity = "0";
+                currentOutline.style.opacity = "0";
+
+                setTimeout(() => {
+                  // 要素の入れ替え
+                  [currentElement, nextElement] = [nextElement, currentElement];
+                  [currentOutline, nextOutline] = [nextOutline, currentOutline];
+
+                  // 次の状態の準備
+                  nextElement.style.opacity = "0";
+                  nextOutline.style.opacity = "0";
+
+                  isTransitioning = false;
+                  previousMinute = currentMinute;
+                }, 400);
+              }, 100);
+            });
+          });
+        });
+      };
+
+      // 次の分の0秒に合わせて更新をスケジュール
+      const scheduleNextMinuteUpdate = () => {
+        const now = new Date();
+        const nextMinute = new Date(now);
+        nextMinute.setMinutes(now.getMinutes() + 1, 0, 0); // 次の分の0秒に設定
+
+        const timeUntilNextMinute = nextMinute.getTime() - now.getTime();
+
+        setTimeout(() => {
+          // 分が変わった瞬間に確実に更新
+          const dt = dayjs(new Date());
+          if (!isTransitioning && dt.minute() !== previousMinute) {
+            performTimeUpdate(dt, dt.minute());
+          }
+          // 次の分の更新もスケジュール
+          scheduleNextMinuteUpdate();
+        }, timeUntilNextMinute);
+      };
+
+      // ページの可視性が変わったときの処理
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+          // ページが再表示されたら時刻を強制更新
+          const dt = dayjs(new Date());
+          if (dt.minute() !== previousMinute) {
+            if (!isTransitioning) {
+              performTimeUpdate(dt, dt.minute());
+            } else {
+              // トランジション中でも強制的に現在時刻を表示
+              forceTimeUpdate();
+            }
+          }
+        }
+      });
+
+      // フォーカスが戻ったときの処理
+      window.addEventListener("focus", () => {
+        const dt = dayjs(new Date());
+        if (dt.minute() !== previousMinute) {
+          if (!isTransitioning) {
+            performTimeUpdate(dt, dt.minute());
+          } else {
+            // トランジション中でも強制的に現在時刻を表示
+            forceTimeUpdate();
+          }
+        }
+      });
+
+      // ページロードやエラー復旧時の緊急更新処理
+      window.addEventListener("pageshow", () => {
+        // ページが表示された時（ブラウザバック等も含む）
+        setTimeout(() => {
+          const dt = dayjs(new Date());
+          if (dt.minute() !== previousMinute) {
+            forceTimeUpdate();
+          }
+        }, 100);
+      });
+
+      // 5分ごとの強制同期チェック
+      setInterval(() => {
+        const dt = dayjs(new Date());
+        if (dt.minute() !== previousMinute) {
+          console.log(
+            "5分チェック: 時刻が同期していませんでした。強制更新します。"
+          );
+          forceTimeUpdate();
+        }
+      }, 5 * 60 * 1000); // 5分ごと
+
+      // 30秒ごとの軽量チェック
+      setInterval(() => {
+        const dt = dayjs(new Date());
+        const currentMinute = dt.minute();
+
+        // 2分以上ずれていたら強制修正
+        const timeDiff = Math.abs(currentMinute - previousMinute);
+        if (timeDiff > 1 && timeDiff < 58) {
+          // 58は59->0の場合を除外
+          console.log("30秒チェック: 大きな時刻ずれを検出。強制更新します。");
+          forceTimeUpdate();
+        }
+      }, 30 * 1000); // 30秒ごと
+
+      // DOMContentLoadedイベントで初期化
+      document.addEventListener("DOMContentLoaded", initClock);
+      // ▲ ここまで時計の動作ロジック ▲
+    </script>
+  </body>
+</html>
